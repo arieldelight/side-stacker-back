@@ -44,10 +44,7 @@ module.exports.placePiece = async function (gameId, playerId, row, column) {
 
   const playerIsRed = validatePlayerCanMove(game, playerId);
   validateMoveIsValid(column, game, row);
-
-  const board = game.board.map((_) => [..._]);
-  board[row][column] = playerIsRed ? "R" : "B";
-  game.board = board;
+  game.board = updateBoard(game.board, row, column, playerIsRed);
   game.status = playerIsRed ? GameStates.BlackMoves : GameStates.RedMoves;
 
   if (gameIsOver(game.board, row, column)) {
@@ -101,7 +98,16 @@ function validateMoveIsValid(column, game, row) {
   }
 }
 
+function updateBoard(originalBoard, row, column, playerIsRed) {
+  const newBoard = originalBoard.map((_) => [..._]);
+  newBoard[row][column] = playerIsRed ? "R" : "B";
+  return newBoard;
+}
+
 function gameIsOver(board, row, col) {
+  // path: a sequence of 4 cells (for evaluating if there are four in line)
+  // vPaths: set of vertical paths that need to be evaluated, given that the user played row:col
+  // hPaths, dxPaths: same that vPaths but for horizontal and diagonals
   const vPaths = [row - 3, row - 2, row - 1, row].map((start) => [
     [start, col],
     [start + 1, col],
@@ -137,6 +143,7 @@ function gameIsOver(board, row, col) {
     [_row - 3, _col + 3],
   ]);
 
+  // remove any path that contain an invalid coordinate (ie: row=-1, col=7, etc)
   const allPaths = [...vPaths, ...hPaths, ...d1Paths, ...d2Paths].filter(
     (arr) =>
       arr.every(
