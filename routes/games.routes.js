@@ -3,6 +3,7 @@ const {
   getOrCreateGame,
   placePiece,
   getGame,
+  createSinglePlayerGame,
 } = require("../services/games.services");
 const { generateToken } = require("../services/token.services");
 const { ClientError } = require("../errors");
@@ -11,8 +12,12 @@ const router = express.Router();
 
 router.post("/", async function (req, res, next) {
   const playerId = generateToken();
+  const gameType = req.query.gameType;
+
   try {
-    const game = await getOrCreateGame(playerId);
+    const game = await (gameType === "single player"
+      ? createSinglePlayerGame(playerId)
+      : getOrCreateGame(playerId));
     res.send(toResponse(game, playerId));
   } catch (error) {
     res.status(error instanceof ClientError ? 400 : 500);
