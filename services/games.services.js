@@ -16,6 +16,16 @@ module.exports.getGame = async function (gameId, playerId) {
   });
 };
 
+module.exports.createSinglePlayerGame = async function (playerId) {
+  return Game.create({
+    id: generateToken(),
+    redPlayerId: playerId,
+    blackPlayerId: "AI",
+    status: GameStates.RedMoves,
+    board: Array(7).fill(Array(7).fill(null)),
+  });
+};
+
 module.exports.getOrCreateGame = async function (playerId) {
   const [game, wasCreated] = await Game.findOrCreate({
     where: {
@@ -36,7 +46,23 @@ module.exports.getOrCreateGame = async function (playerId) {
   return game;
 };
 
-module.exports.placePiece = async function (gameId, playerId, row, column) {
+function getRandomUpToExcluding(n) {
+  return Math.floor(Math.random() * n);
+}
+
+function combine(x, y) {
+  const arr = [];
+  for (let i = 0; i < x; i++) {
+    for (let j = 0; j < y; j++) {
+      arr.push([i, j]);
+    }
+  }
+  return arr;
+}
+
+const allCellsCombination = combine(7, 7);
+
+async function placePiece(gameId, playerId, row, column) {
   const game = await Game.findOne({ where: { id: gameId } });
   if (!game) {
     throw new ClientError("Invalid game ID");
@@ -53,9 +79,33 @@ module.exports.placePiece = async function (gameId, playerId, row, column) {
   }
 
   await game.save();
+  return allowArtificialIntelligenceToMove(game, playerIsRed, gameId);
+}
+module.exports.placePiece = placePiece;
 
+function allowArtificialIntelligenceToMove(game, playerIsRed) {
+  const isAiTurn =
+    game.status !== GameStates.GameOver &&
+    playerIsRed &&
+    game.blackPlayerId === "AI";
+  if (isAiTurn) {
+    const emptyCells = allCellsCombination.filter(
+      ([r, c]) => !game.board[r][c]
+    );
+    const validEmptyCells = emptyCells.filter(([r, c]) => {
+      try {
+        validateMoveIsValid(c, game, r);
+        return true;
+      } catch (_) {
+        return false;
+      }
+    });
+    const [randomRow, randomColumn] =
+      validEmptyCells[getRandomUpToExcluding(validEmptyCells.length)];
+    return placePiece(game.id, "AI", randomRow, randomColumn);
+  }
   return game;
-};
+}
 
 function validatePlayerCanMove(game, playerId) {
   if (playerId !== game.redPlayerId && playerId !== game.blackPlayerId) {
